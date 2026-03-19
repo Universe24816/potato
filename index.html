@@ -1,65 +1,205 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>うめだの紹介ページ</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: linear-gradient(135deg, #a8edea, #fed6e3);
-      margin: 0;
-      padding: 0;
-      color: #333;
-      text-align: center;
-    }
-    .container {
-      max-width: 600px;
-      margin: 50px auto;
-      background: white;
-      padding: 30px;
-      border-radius: 20px;
-      box-shadow: 0 8px 20px rgba(0,0,0,0.1);
-    }
-    h1 {
-      font-size: 2em;
-      margin-bottom: 10px;
-    }
-    p {
-      line-height: 1.6;
-    }
-    .section {
-      margin-top: 20px;
-    }
-    .emoji {
-      font-size: 1.2em;
-    }
-  </style>
+<meta charset="UTF-8">
+<title>ブロスタ風サッカー進化版</title>
+<style>
+body { margin:0; background:#1e8449; overflow:hidden; }
+canvas { display:block; margin:auto; background:#27ae60; }
+#ui {
+  position:absolute;
+  top:10px; left:10px;
+  color:white; font-size:20px;
+}
+.btn {
+  position:absolute;
+  width:70px; height:70px;
+  border-radius:50%;
+  color:white; border:none;
+}
+#shoot { bottom:30px; right:30px; background:red; }
+#dash { bottom:30px; right:120px; background:blue; }
+</style>
 </head>
 <body>
-  <div class="container">
-    <h1>🌟 うめだの紹介 🌟</h1>
-    <p>こんにちは！うめだです😊<br>明るく元気にいろんなことに挑戦中！</p>
 
-    <div class="section">
-      <h2>🎯 好きなこと</h2>
-      <p>・新しいことにチャレンジ<br>・友達と楽しく過ごす</p>
-    </div>
+<div id="ui">0 - 0</div>
+<canvas id="game" width="900" height="500"></canvas>
+<button id="shoot" class="btn">SHOOT</button>
+<button id="dash" class="btn">DASH</button>
 
-    <div class="section">
-      <h2>💪 得意なこと</h2>
-      <p>・コツコツ努力すること<br>・最後まであきらめないこと</p>
-    </div>
+<script>
+const c = game;
+const ctx = c.getContext("2d");
 
-    <div class="section">
-      <h2>🌈 目標</h2>
-      <p>自分の可能性を広げて、成長し続ける！</p>
-    </div>
+let scoreA=0, scoreB=0;
 
-    <div class="section">
-      <h2>✨ ひとこと</h2>
-      <p>「前向きに全力で！」</p>
-    </div>
-  </div>
+function createPlayer(x,y,color){
+  return {x,y,vx:0,vy:0,r:12,color,hasBall:false,dash:0};
+}
+
+let teamA = [
+  createPlayer(100,250,"blue"),
+  createPlayer(150,150,"blue"),
+  createPlayer(150,350,"blue")
+];
+
+let teamB = [
+  createPlayer(800,250,"red"),
+  createPlayer(750,150,"red"),
+  createPlayer(750,350,"red")
+];
+
+let player = teamA[0];
+
+let ball = {x:450,y:250,vx:0,vy:0,r:8,owner:null};
+
+let walls = [
+  {x:350,y:150,w:20,h:200},
+  {x:530,y:150,w:20,h:200}
+];
+
+// タッチ
+let touch=null;
+c.addEventListener("touchmove",e=>{
+  const r=c.getBoundingClientRect();
+  touch={
+    x:e.touches[0].clientX-r.left,
+    y:e.touches[0].clientY-r.top
+  };
+});
+
+// シュート
+shoot.onclick=()=>{
+  if(ball.owner===player){
+    ball.owner=null;
+    ball.vx=5;
+    ball.vy=(Math.random()-0.5)*4;
+  }
+};
+
+// ダッシュ
+dash.onclick=()=>{
+  if(player.dash<=0){
+    player.vx*=5;
+    player.vy*=5;
+    player.dash=100;
+  }
+};
+
+function movePlayer(p){
+  if(p===player && touch){
+    p.vx=(touch.x-p.x)*0.1;
+    p.vy=(touch.y-p.y)*0.1;
+  }
+
+  p.x+=p.vx;
+  p.y+=p.vy;
+
+  p.vx*=0.8;
+  p.vy*=0.8;
+
+  if(p.dash>0)p.dash--;
+
+  // 壁
+  walls.forEach(w=>{
+    if(p.x>w.x && p.x<w.x+w.w && p.y>w.y && p.y<w.y+w.h){
+      p.x-=p.vx;
+      p.y-=p.vy;
+    }
+  });
+}
+
+function ai(p){
+  let target=ball.owner?ball.owner:ball;
+  p.vx+=(target.x-p.x)*0.01;
+  p.vy+=(target.y-p.y)*0.01;
+}
+
+function updateBall(){
+  if(ball.owner){
+    ball.x=ball.owner.x;
+    ball.y=ball.owner.y;
+  } else {
+    ball.x+=ball.vx;
+    ball.y+=ball.vy;
+    ball.vx*=0.98;
+    ball.vy*=0.98;
+  }
+
+  // 壁反射
+  walls.forEach(w=>{
+    if(ball.x>w.x && ball.x<w.x+w.w && ball.y>w.y && ball.y<w.y+w.h){
+      ball.vx*=-1;
+    }
+  });
+
+  // 取得判定
+  [...teamA,...teamB].forEach(p=>{
+    let d=Math.hypot(p.x-ball.x,p.y-ball.y);
+    if(d<15){
+      ball.owner=p;
+    }
+  });
+
+  // ゴール
+  if(ball.x<0 && ball.y>180 && ball.y<320){
+    scoreB++; reset();
+  }
+  if(ball.x>c.width && ball.y>180 && ball.y<320){
+    scoreA++; reset();
+  }
+}
+
+function reset(){
+  ball={x:450,y:250,vx:0,vy:0,r:8,owner:null};
+}
+
+function draw(){
+  ctx.clearRect(0,0,c.width,c.height);
+
+  // 壁
+  ctx.fillStyle="gray";
+  walls.forEach(w=>ctx.fillRect(w.x,w.y,w.w,w.h));
+
+  // ゴール
+  ctx.fillStyle="white";
+  ctx.fillRect(0,180,10,140);
+  ctx.fillRect(890,180,10,140);
+
+  // プレイヤー
+  [...teamA,...teamB].forEach(p=>{
+    ctx.fillStyle=p.color;
+    ctx.beginPath();
+    ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+    ctx.fill();
+  });
+
+  // ボール
+  ctx.fillStyle="white";
+  ctx.beginPath();
+  ctx.arc(ball.x,ball.y,ball.r,0,Math.PI*2);
+  ctx.fill();
+
+  ui.innerText=`${scoreA} - ${scoreB}`;
+}
+
+function loop(){
+  movePlayer(player);
+
+  teamA.slice(1).forEach(ai);
+  teamB.forEach(ai);
+
+  [...teamA,...teamB].forEach(movePlayer);
+
+  updateBall();
+  draw();
+
+  requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+
 </body>
 </html>
